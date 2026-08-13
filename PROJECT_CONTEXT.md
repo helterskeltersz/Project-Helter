@@ -72,11 +72,16 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
 - **Escape + laser turret (knockout/podium only)**: bola yang kena gap gak langsung `alive=false`.
   Ditandai `escaping=true`, terbang radial keluar sampai `HOVER_R`, hover situ sambil `escT` nambah
   tiap frame. Begitu `escT>=ESCAPE_DELAY(0.45s)` → `fireLaser(b)` dipanggil: gambar garis laser merah
-  dari turret terdekat (`TURRET_L`/`TURRET_R`, digambar di canvas via `drawTurrets`, juga ada versi
-  dekoratif HTML di `.turretIcon` sebelah tombol start) ke posisi bola, spark merah, baru bola
-  `alive=false` + masuk `elimLog`. `notifyFlag('DISQUALIFIED')` otomatis muncul next tick karena
-  baca `elimLog.length>lastElimNotified` (logic ini gak diubah). Selama escaping, bola dikecualikan
-  dari collision & wall-bounce loop (biar gak mantul aneh pas udah "keluar").
+  dari turret TERDEKAT (dari 4 total — lihat `TURRETS`/turret di THEME VISUAL di bawah) ke posisi bola,
+  spark merah, baru bola `alive=false` + masuk `elimLog`. `notifyFlag('DISQUALIFIED')` otomatis muncul
+  next tick karena baca `elimLog.length>lastElimNotified` (logic ini gak diubah, tapi notif ini cuma
+  dipasang di knockout/podium — qualify tetap gak nampilin DISQUALIFIED popup per bendera, cuma popup
+  QUALIFIED buat pemenang tiap round). Selama escaping, bola dikecualikan dari collision & wall-bounce
+  loop (biar gak mantul aneh pas udah "keluar"). **PENTING (round 5)**: mekanik escape+laser ini SEKARANG
+  BERLAKU DI SEMUA FASE termasuk qualify (awalnya cuma knockout/podium) — di `step()` percabangan
+  `if(phase==='knockout'||phase==='podium')` udah DIHAPUS, semua eliminasi lewat gap sekarang selalu
+  escape+laser dulu baru masuk `elimLog`. Konsekuensi: penentuan pemenang qualify per-round (`left.length
+  <=1`) ketunda dikit (~0.45s) karena nunggu laser finalize eliminasi terakhir — ini disengaja/diminta.
 - **POPUP FUNGSI**:
   - `showPopup(items,label,onDone,forcePause)` → popup pause (milestone QUALIFIED/FINAL 3/CHAMPION).
   - `showPhaseIntro(key,onDone)` → popup 5 detik pas ganti fase (qualify/knockout/podium), isi
@@ -92,21 +97,37 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
     → ledakan partikel radial (6 burst staggered ~400ms, warna random per burst) + `playBoom` tiap burst,
     dipanggil bareng `launchConfetti` di `showPodium()`.
   - Suara: `beep`, `playBounce` (wall), `playScrape` (tabrakan bola-bola, sawtooth — beda dari playBounce),
-    `playElim`, `playQualify`, `playFanfare`, `playPhase`, `playZap` (laser), `playBoom` (firework).
-  - **Voice-over** via Web Speech API (`speak(text)`/`radioAnnounce(text)`): baca teks pakai
-    `SpeechSynthesisUtterance` (pitch 0.82, rate 0.95), dibungkus chirp radio (`beep` dua nada) sebelum
-    mulai & sesudah selesai (`u.onend`) biar berasa "transmisi radio luar angkasa". Ikut toggle `soundOn`
-    yang sama dengan efek suara lain (gak ada toggle terpisah). Dipanggil di 3 titik: `showPhaseIntro`
-    (baca judul+rules tiap ganti fase), transisi knockout→podium (baca 3 negara yang lolos ke standing
-    round), dan saat champion ditentukan (baca nama juara). Availability API di-cek (`'speechSynthesis'
-    in window`) jadi aman kalau browser gak support.
-- **Ticker "Qualified" & "Eliminated"**: keduanya pakai fungsi shared `renderTicker(list,prefix,countId)`
-  → 3 baris sweep marquee (`qRow0-2` / `eRow0-2`), animasi CSS `qsweep` pakai custom properties
-  `--sx`/`--ex` yang di-hitung JS per-render dari `container.clientWidth` & `row.scrollWidth` — jadi
-  SELALU nyapu full lebar box (dari tepi kanan container sampai lewat tepi kiri konten atau sebaliknya),
-  gak kepotong walau kontennya dikit (bug lama: dupe-content+translateX(-50%) cuma jalan separo box
-  kalau konten pendek — udah diperbaiki). `renderG()`=qualified ticker (di atas arena), `renderLog()`=
-  eliminated ticker (di bawah tombol start, border merah + `.ticker.elim img{filter:grayscale(1)}`).
+    `playQualify`, `playFanfare`, `playPhase`, `playZap` (laser), `playBoom` (firework). `playElim` udah
+    DIHAPUS (unused sejak eliminasi selalu lewat `fireLaser`→`playZap`).
+  - **Voice-over** via Web Speech API (`speak(text)`): SEJAK ROUND 5 — suara normal (rate 1, pitch 1),
+    prefer voice PEREMPUAN (`pickVoice()` nyari nama match `/Samantha|Zira|Karen|Victoria|Moira|Tessa|
+    Female|Google US English|Google UK English Female/i`), TANPA chirp radio/efek luar angkasa (dihapus
+    total, sebelumnya ada tapi user minta dihapus). `unlockSpeech()` dipanggil sinkron di dalam
+    `startBtn.onclick` (ngomong utterance kosong volume 0.01) buat "unlock" TTS di browser mobile yang
+    strict soal user-gesture (iOS Safari dkk) — kalau ini gak ada, `speak()` yang dipanggil belakangan
+    dari dalam `step()` (bukan langsung dari klik user) sering ke-block/silent di HP. Ikut toggle
+    `soundOn`. Dipanggil di 3 titik: `showPhaseIntro`, transisi knockout→podium, saat champion ditentukan.
+- **Ticker "Qualified" & "Eliminated"**: SEJAK ROUND 5, bukan CSS `animation` lagi — sekarang JS-driven
+  continuous transform biar GAK PERNAH restart/lompat pas ada entry baru masuk (request eksplisit user).
+  Tiap row (`qRow0-2`/`eRow0-2`) punya state di `tickerRows[rowId] = {pos, expandedWidth, dir}` — `pos`
+  itu MONOTONIC (naik terus, gak pernah di-reset oleh `renderTicker()`), diambil modulo
+  `expandedWidth` tiap frame di `stepTickers(dt)` (dipanggil dari `loop()`) buat dapetin posisi transform.
+  `renderTicker()` cuma update KONTEN (innerHTML) & `expandedWidth` — content di-pad (di-repeat sampai
+  lebih lebar dari container) baru diduplikasi 2x buat seamless loop, TAPI `pos` gak disentuh sama sekali
+  → makanya nambah bendera baru gak bikin yang lagi jalan "lompat"/restart. `renderG()`/`renderLog()`
+  masih ada guard `lastQualifiedRender`/`lastElimRender` (skip render kalau `.length` gak berubah, biar
+  gak measure DOM tiap tick sia-sia — TAPI ini cuma optimasi render konten, animasinya sendiri udah gak
+  butuh guard ini lagi karena `stepTickers` jalan independen tiap frame).
+
+## PERUBAHAN DESAIN TERAKHIR (round 5, sama hari 2026-08-13)
+- Voice-over dirombak TOTAL: hapus efek radio/chirp & pitch/rate dramatis, ganti suara PEREMPUAN normal
+  (`pickVoice` prefer nama voice perempuan), tambah `unlockSpeech()` di klik Start biar reliable diputer
+  di HP (browser strict soal TTS harus nempel user-gesture).
+- Ticker Qualified/Eliminated: gak lagi restart animasi pas ada entry baru — full rewrite jadi JS-driven
+  continuous transform (`tickerRows`/`stepTickers`). Lihat detail lengkap di bagian MEKANIK.
+- HUD kecil di pojok canvas (alive/total/nama-fase) dihapus, user bilang bikin berantakan.
+- Laser turret jadi 4 (nambah 2 di atas ring), dan mekanik escape+laser sekarang aktif dari fase
+  QUALIFICATION juga (sebelumnya cuma knockout/podium).
 
 ## PERUBAHAN DESAIN TERAKHIR (round 4, sama hari 2026-08-13)
 - **Fix bug suara hilang**: `beep()` sekarang cek `actx.state==='suspended'` dan `resume()` tiap dipanggil,
@@ -143,8 +164,15 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
   energy rail cyan berdenyut di tepi dalam, lampu penerbangan (cockpit blips) cyan kelap-kelip.
 - **CELAH (gap)**: bentuk kayak pintu hatch terbuka dengan glow + lampu tepi. **WAJIB AMBER/KUNING TERAKHIR**:
   lampu celah `rgba(255,225,80)` / glow `rgba(255,204,60)`. JANGAN ubah kembali ke cyan tanpa diminta.
-- **Laser turret**: HANYA 2, digambar di canvas (`drawTurrets`/`TURRET_L`/`TURRET_R`, dekat bawah ring).
-  Versi dekoratif HTML di samping tombol start **udah dihapus** (user minta cukup 2 turret aja).
+- **Laser turret**: 4 total (round 5, naik dari 2) — `TURRET_L`/`TURRET_R` (bawah ring) + `TURRET_TL`/
+  `TURRET_TR` (atas ring, shape di-flip vertikal via `drawTurret(ctx,x,y,mirror,flipY)`), semua di array
+  `TURRETS` dan digambar via `drawTurrets`. `fireLaser()` milih yang PALING DEKAT dari 4 (bukan cuma
+  kiri/kanan by x lagi). Versi dekoratif HTML di samping tombol start tetap gak ada (dihapus round 3).
+  Aktif (beneran nembak) dari fase QUALIFICATION juga sekarang, bukan cuma knockout/podium — lihat
+  MEKANIK di atas.
+- **HUD overlay dihapus** (round 5): kotak kecil "🎯 alive/total | ⚡ nama-fase" yang dulu nempel di
+  pojok kiri-atas canvas (`#hud`) udah gak ada — user minta dibersihin. `updateHUD()` sekarang cuma
+  manggil `renderLog()`, gak ada lagi elemen `#alive`/`#total`/`#fase` di DOM.
 
 ## PERUBAHAN DESAIN TERAKHIR (round 3, sama hari 2026-08-13)
 - Turret laser dekoratif di samping tombol start **dihapus** — cukup 2 turret (yang di canvas, kiri-kanan

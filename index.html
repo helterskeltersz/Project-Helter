@@ -45,7 +45,6 @@
   @media (max-height:600px){ #wrap{max-width:220px} }
   #c{display:block;width:100%;border-radius:12px}
   #confettiC{pointer-events:none;position:absolute;inset:0;width:100%;height:100%;border-radius:12px}
-  #hud{position:absolute;top:8px;left:8px;background:rgba(7,11,26,.82);padding:4px 8px;border-radius:6px;font-size:10px;line-height:1.4;border:1px solid rgba(255,255,255,.07)}
   #winnerBanner{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,8,20,.88);border-radius:12px;z-index:30;text-align:center}
   #winnerBanner.show{display:flex}
   #winnerBanner .title{font-size:12px;opacity:.7;letter-spacing:2px;margin-bottom:4px}
@@ -79,7 +78,6 @@
   .qRowInner img{width:28px;height:18px;object-fit:cover;border-radius:3px;border:1px solid rgba(120,220,255,.3);box-shadow:0 0 5px rgba(60,200,255,.25);flex:0 0 auto}
   .ticker.elim .qRowInner img{filter:grayscale(1) contrast(1.05) brightness(.85);border-color:rgba(255,120,110,.35);box-shadow:0 0 5px rgba(255,60,60,.2)}
   .qRow.empty::after{content:'—';display:block;text-align:center;opacity:.25;font-size:10px;line-height:20px}
-  @keyframes qsweep{from{transform:translateX(var(--sx,100%))}to{transform:translateX(var(--ex,-100%))}}
 
   #startRow{display:flex;align-items:flex-end;justify-content:center;gap:18px;width:100%;max-width:640px;margin:4px auto}
   #startBtn{flex:none;position:relative;width:50px;height:50px;border-radius:50%;border:2px solid rgba(120,220,255,.4);background:radial-gradient(circle at 50% 35%,#182451,#0b1230);box-shadow:0 0 14px rgba(120,220,255,.25),inset 0 0 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:visible;padding:0;transition:box-shadow .2s,border-color .2s}
@@ -123,7 +121,6 @@
 <div id="wrap">
   <canvas id="c" width="640" height="640"></canvas>
   <canvas id="confettiC" width="640" height="640"></canvas>
-  <div id="hud">🎯 <span id="alive">0</span>/<span id="total">0</span> &nbsp;|&nbsp; ⚡ <span id="fase">-</span></div>
   <div id="winnerBanner">
     <div class="title">🏆 CHAMPION 🏆</div>
     <div id="podium"></div>
@@ -188,13 +185,15 @@ for(const code of FLAG_CODES){const img=new Image();img.src=FLAG_IMGS[code];FLAG
 // ===== SETUP =====
 const C=document.getElementById('c'),CX=320,CY=320,R=290;
 const TURRET_L={x:CX-90,y:CY+R+8}, TURRET_R={x:CX+90,y:CY+R+8};
+const TURRET_TL={x:CX-90,y:CY-R-8}, TURRET_TR={x:CX+90,y:CY-R-8};
+const TURRETS=[TURRET_L,TURRET_R,TURRET_TL,TURRET_TR];
 const FX=C.getContext('2d');
 const C2=document.getElementById('confettiC'),FX2=C2.getContext('2d');
 // ===== STATE =====
 let phase='idle',allN=[],qPool=[],qualified=[],knockoutPool=[],sessionPool=[],survivors3=[],podium=[],podiumOrder=[],balls=[],gaps=[0],gapA=0,simT=0;
 let mode='normal',boost=false;
 // ===== SOUND EFFECTS (Web Audio, synthesized) =====
-let actx=null,soundOn=true,lastBounce=0,lastElim=0,lastScrape=0;
+let actx=null,soundOn=true,lastBounce=0,lastScrape=0;
 function ensureAudio(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(actx&&actx.state==='suspended')actx.resume()}
 function beep(freq,dur,type,vol,when){
   if(!soundOn||!actx)return;
@@ -208,7 +207,6 @@ function beep(freq,dur,type,vol,when){
 }
 function playBounce(){const n=performance.now();if(n-lastBounce<90)return;lastBounce=n;beep(200+Math.random()*70,0.05,'triangle',0.04)}
 function playScrape(){const n=performance.now();if(n-lastScrape<80)return;lastScrape=n;beep(150+Math.random()*300,0.09,'sawtooth',0.035)}
-function playElim(){const n=performance.now();if(n-lastElim<130)return;lastElim=n;beep(560,0.1,'square',0.05);beep(280,0.16,'square',0.04,0.02)}
 function playQualify(){beep(523,0.13,'triangle',0.11);beep(659,0.13,'triangle',0.11,0.1);beep(784,0.26,'triangle',0.12,0.2)}
 function playFanfare(){[523,659,784,1046].forEach((f,i)=>beep(f,0.3,'triangle',0.13,i*0.13));beep(1318,0.7,'triangle',0.13,0.55)}
 function playPhase(){beep(392,0.12,'triangle',0.1);beep(523,0.18,'triangle',0.1,0.1)}
@@ -276,7 +274,8 @@ function checkGapHit(a,gapStates){
 }
 const ESCAPE_DELAY=0.45, HOVER_R=R+20;
 function fireLaser(b){
-  const turret=(b.x<CX)?TURRET_L:TURRET_R;
+  let turret=TURRETS[0],best=Infinity;
+  for(const t of TURRETS){ const d=Math.hypot(b.x-t.x,b.y-t.y); if(d<best){best=d;turret=t;} }
   lasers.push({x1:turret.x,y1:turret.y,x2:b.x,y2:b.y,life:0.22,max:0.22});
   spawnSparks(b.x,b.y,10,'#ff3b3b');
   playZap();
@@ -301,13 +300,10 @@ function step(dt){
     if(dist+b.r>R){
       const a=Math.atan2(dy,dx);
       if(checkGapHit(a,gapStates)){
-        if(phase==='knockout'||phase==='podium'){
-          const spd=Math.hypot(b.vx,b.vy)||150;
-          b.vx=Math.cos(a)*spd*1.25; b.vy=Math.sin(a)*spd*1.25;
-          b.escaping=true; b.escT=0; b.laserFired=false;
-        } else {
-          b.alive=false;elimLog.push(b.n);playElim();
-        }
+        // every phase now escapes through the gap and gets finalized by a turret laser (fireLaser)
+        const spd=Math.hypot(b.vx,b.vy)||150;
+        b.vx=Math.cos(a)*spd*1.25; b.vy=Math.sin(a)*spd*1.25;
+        b.escaping=true; b.escT=0; b.laserFired=false;
       }
       else{const nx=dx/dist,ny=dy/dist,o=(dist+b.r)-R;b.x-=nx*o;b.y-=ny*o;const dot=b.vx*nx+b.vy*ny;b.vx-=2*dot*nx;b.vy-=2*dot*ny;playBounce()}
     }
@@ -352,7 +348,7 @@ function step(dt){
     if(left.length<=3 && left.length>=1){
       survivors3=left.map(b=>b.n);
       updateHUD();
-      radioAnnounce(`Standing round locked in. Advancing to the podium: ${survivors3.map(n=>NAME_MAP[n.code]||n.code).join(', ')}. Prepare for the final stand.`);
+      speak(`Standing round locked in. Advancing to the podium: ${survivors3.map(n=>NAME_MAP[n.code]||n.code).join(', ')}. Prepare for the final stand.`);
       showPopup(survivors3,'FINAL 3',()=>{
         showPhaseIntro('podium',()=>{ phase='podium'; enterPhase(); });
       },true);
@@ -371,7 +367,7 @@ function step(dt){
       const third=elimLog.length>=2?elimLog[elimLog.length-2]:second;
       podium=[champ,second,third];
       phase='done'; setRunning(false); updateHUD();
-      radioAnnounce(`We have a champion! ${NAME_MAP[champ.code]||champ.code} takes the crown of the Flag Battle Royale! Congratulations, champion.`);
+      speak(`We have a champion! ${NAME_MAP[champ.code]||champ.code} takes the crown of the Flag Battle Royale! Congratulations, champion.`);
       showPopup([champ],'🏆 CHAMPION',()=>{ showPodium(); },true);
       return;
     }
@@ -447,10 +443,10 @@ function drawShipArena(ctx){
     ctx.strokeStyle='rgba(255,204,60,0.55)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(CX,CY,R-2,g-ew/2,g+ew/2);ctx.stroke();
   });
 }
-function drawTurret(ctx,x,y,mirror){
+function drawTurret(ctx,x,y,mirror,flipY){
   ctx.save();
   ctx.translate(x,y);
-  if(mirror) ctx.scale(-1,1);
+  ctx.scale(mirror?-1:1,flipY?-1:1);
   ctx.fillStyle='#2a3f5f';
   ctx.beginPath();ctx.moveTo(-9,14);ctx.lineTo(9,14);ctx.lineTo(6,-6);ctx.lineTo(-6,-6);ctx.closePath();ctx.fill();
   ctx.strokeStyle='rgba(120,220,255,.5)';ctx.lineWidth=1;ctx.stroke();
@@ -461,8 +457,10 @@ function drawTurret(ctx,x,y,mirror){
   ctx.restore();
 }
 function drawTurrets(ctx){
-  drawTurret(ctx,TURRET_L.x,TURRET_L.y,false);
-  drawTurret(ctx,TURRET_R.x,TURRET_R.y,true);
+  drawTurret(ctx,TURRET_L.x,TURRET_L.y,false,false);
+  drawTurret(ctx,TURRET_R.x,TURRET_R.y,true,false);
+  drawTurret(ctx,TURRET_TL.x,TURRET_TL.y,false,true);
+  drawTurret(ctx,TURRET_TR.x,TURRET_TR.y,true,true);
 }
 
 function draw(){
@@ -495,31 +493,45 @@ function draw(){
 }
 
 function updateHUD(){
-  const a=balls.filter(b=>b.alive).length;
-  document.getElementById('alive').textContent=a;document.getElementById('total').textContent=balls.length;
-  const lab={idle:'-',qualify:'Qualification 150→75',knockout:'Knockout 75→3',podium:'Podium 3→1',done:'Champion!'};
-  document.getElementById('fase').textContent=lab[phase]||'-';
   renderLog();
 }
 
+// Continuous ticker: a monotonically-increasing `pos` per row (never reset) is taken modulo the
+// current content width every frame (stepTickers). Content can be regenerated at any time (new
+// flag appended) without ever resetting `pos`, so already-scrolling flags never jump/restart —
+// only the CONTENT changes, the scroll position flows through it seamlessly.
+const TICKER_SPEED=42; // px/s
+const tickerRows={};
 function renderTicker(list,prefix,countId){
   document.getElementById(countId).textContent=`(${list.length})`;
   const rows=[[],[],[]];
   list.forEach((n,i)=>rows[i%3].push(n));
   for(let r=0;r<3;r++){
-    const row=document.getElementById(prefix+r);
+    const rowId=prefix+r;
+    const row=document.getElementById(rowId);
     const container=row.parentElement; // .qRow
     const items=rows[r];
     container.classList.toggle('empty',items.length===0);
-    if(!items.length){ row.innerHTML=''; row.style.animation='none'; continue; }
-    const html=items.map(n=>`<img src="${FLAG_IMGS[n.code]}" title="${NAME_MAP[n.code]||n.code}">`).join('');
-    row.innerHTML=html;
-    row.style.animation='none'; void row.offsetWidth; // reset before measuring
-    const cw=container.clientWidth||640, contentW=row.scrollWidth;
-    const dur=Math.max(6,(cw+contentW)/70); // ~70px/s, full sweep across the box
-    if(r===1){ row.style.setProperty('--sx',(-contentW)+'px'); row.style.setProperty('--ex',cw+'px'); }
-    else { row.style.setProperty('--sx',cw+'px'); row.style.setProperty('--ex',(-contentW)+'px'); }
-    row.style.animation=`qsweep ${dur}s linear infinite`;
+    const st=tickerRows[rowId]||(tickerRows[rowId]={pos:0,expandedWidth:0,dir:(r===1)?1:-1});
+    if(!items.length){ row.innerHTML=''; st.expandedWidth=0; continue; }
+    const singleHtml=items.map(n=>`<img src="${FLAG_IMGS[n.code]}" title="${NAME_MAP[n.code]||n.code}">`).join('');
+    row.innerHTML=singleHtml; // measure one copy first
+    const containerW=container.clientWidth||300, singleWidth=row.scrollWidth||1;
+    const repeats=Math.max(1,Math.ceil(containerW/singleWidth)); // pad so it always fills the box
+    const expandedHtml=singleHtml.repeat(repeats);
+    row.innerHTML=expandedHtml+expandedHtml; // two copies back-to-back for a seamless loop
+    st.expandedWidth=singleWidth*repeats;
+  }
+}
+function stepTickers(dt){
+  for(const rowId in tickerRows){
+    const st=tickerRows[rowId];
+    if(!st.expandedWidth) continue;
+    st.pos+=TICKER_SPEED*dt;
+    const row=document.getElementById(rowId);
+    if(!row) continue;
+    const m=st.pos%st.expandedWidth;
+    row.style.transform=`translateX(${st.dir<0?-m:(m-st.expandedWidth)}px)`;
   }
 }
 let lastQualifiedRender=-1, lastElimRender=-1;
@@ -605,6 +617,7 @@ function loop(t){
   if(!lt)lt=t;let dt=Math.min((t-lt)/1e3,0.033);lt=t;wallClock+=dt;
   if(actx&&t-lastAudioCheck>1000){ lastAudioCheck=t; if(actx.state==='suspended')actx.resume(); }
   if(running){const st=(phase==='qualify')?(boost?45:simM):2;for(let s=0;s<st;s++)step(dt)}
+  stepTickers(dt);
   draw();renderEffects(dt);requestAnimationFrame(loop)
 }
 
@@ -633,34 +646,39 @@ const PHASE_INFO={
   podium:{title:'🏆 PODIUM',sub:'Final 3 → Champion',desc:'The last stand. 1 gap opens for 2s every 10 seconds. The last nation standing becomes the Champion!',
     voice:'Final stand. Three nations remain. One breach, cycling every ten seconds. Fight for the crown. Only one champion will rise.'}
 };
-// ===== VOICE-OVER (SpeechSynthesis) — bookended with radio chirps for a space-transmission feel =====
+// ===== VOICE-OVER (SpeechSynthesis) — normal female announcer voice, no FX =====
 let voiceList=null;
 function refreshVoices(){ voiceList=window.speechSynthesis.getVoices(); }
 if('speechSynthesis' in window){
   refreshVoices();
   window.speechSynthesis.onvoiceschanged=refreshVoices;
 }
+function unlockSpeech(){
+  // must be called synchronously inside a real user-gesture handler so later, code-triggered
+  // speak() calls are still allowed to play on strict mobile browsers (iOS Safari, etc).
+  if(!('speechSynthesis' in window)) return;
+  try{
+    const u=new SpeechSynthesisUtterance(' ');
+    u.volume=0.01; u.rate=1;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
 function pickVoice(){
   const voices=(voiceList&&voiceList.length)?voiceList:((window.speechSynthesis&&window.speechSynthesis.getVoices())||[]);
   if(!voices.length) return null;
-  const byName=n=>voices.find(v=>n.test(v.name));
-  return byName(/Daniel|Google UK English Male|Male|David|Fred/i) || voices.find(v=>/en/i.test(v.lang)) || voices[0];
+  const byName=re=>voices.find(v=>re.test(v.name));
+  return byName(/Samantha|Zira|Karen|Victoria|Moira|Tessa|Female|Google US English|Google UK English Female/i)
+    || voices.find(v=>/en/i.test(v.lang)) || voices[0];
 }
 function speak(text){
   if(!soundOn||!('speechSynthesis' in window)) return;
   try{
     window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
-    u.rate=0.92; u.pitch=0.78; u.volume=1;
+    u.rate=1; u.pitch=1; u.volume=1;
     const v=pickVoice(); if(v)u.voice=v;
-    u.onend=()=>{ beep(760,0.05,'sine',0.04); beep(1180,0.06,'sine',0.05,0.07); };
     window.speechSynthesis.speak(u);
   }catch(e){}
-}
-function radioAnnounce(text){
-  if(!soundOn) return;
-  beep(1180,0.05,'sine',0.05); beep(1500,0.04,'sine',0.045,0.06); beep(900,0.06,'sine',0.04,0.12);
-  setTimeout(()=>speak(text),260);
 }
 function showPhaseIntro(key,onDone){
   const info=PHASE_INFO[key];
@@ -669,7 +687,7 @@ function showPhaseIntro(key,onDone){
   document.getElementById('qpopLbl').textContent=info.title;
   const body=document.getElementById('qpopBody');
   body.innerHTML=`<div id="qpopSub">${info.sub}</div><div id="qpopDesc">${info.desc}</div>`;
-  radioAnnounce(info.voice);
+  speak(info.voice);
   const p=document.getElementById('qualifyPopup');
   p.classList.remove('show','hide-anim'); void p.offsetWidth; p.classList.add('show');
   popupBusy=true;
@@ -690,6 +708,7 @@ function beginTournament(){
 document.getElementById('startBtn').onclick=()=>{
   if(popupBusy) return;
   ensureAudio();
+  unlockSpeech();
   if(running){ setRunning(false); return; }
   if(phase==='idle'||phase==='done'){ beginTournament(); }
   else { setRunning(true); }
