@@ -108,6 +108,31 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
   kalau konten pendek — udah diperbaiki). `renderG()`=qualified ticker (di atas arena), `renderLog()`=
   eliminated ticker (di bawah tombol start, border merah + `.ticker.elim img{filter:grayscale(1)}`).
 
+## PERUBAHAN DESAIN TERAKHIR (round 4, sama hari 2026-08-13)
+- **Fix bug suara hilang**: `beep()` sekarang cek `actx.state==='suspended'` dan `resume()` tiap dipanggil,
+  plus safety-net `loop()` ngecek tiap ~1 detik. Root cause: browser HP nge-suspend shared AudioContext
+  pas `speechSynthesis` ngambil "audio focus", dan sebelumnya gak pernah di-resume lagi setelahnya.
+- **Voice-over dirombak**: tiap `PHASE_INFO[key]` sekarang punya field `voice` terpisah dari `desc`
+  (teks di popup tetap informatif/singkat, teks yg diucapkan lebih dramatis ala "space commander").
+  `pickVoice()` nyoba cari voice yg namanya match `/Daniel|Google UK English Male|Male|David|Fred/i`
+  dulu sebelum fallback ke voice English biasa — biar lebih "gravitas". Pitch diturunin ke 0.78, rate 0.92.
+- **Fix ticker "nunggu"**: `renderG()`/`renderLog()` sebelumnya manggil `renderTicker()` (yg restart CSS
+  animation) SETIAP TICK step() — bikin sweep animation ke-reset 60x/detik jadi keliatan macet. Sekarang
+  ada guard `lastQualifiedRender`/`lastElimRender` (cuma re-render kalau `.length` berubah), di-reset ke
+  `-1` di `initTournament()` & `enterPhase()` (biar tetep bersih tiap tournament/round baru).
+- **Layout dikompakin biar 1 layar gak scroll**: tombol start 72px→50px, ticker row 26px→20px, semua
+  margin/padding diperketat, DAN `#wrap` (arena canvas) dibatasi `max-width` via media query berdasar
+  `max-height` viewport (780px/680px/600px breakpoints → 330px/270px/220px) biar canvas ikut ngecil di
+  layar HP pendek. Diverifikasi lolos no-scroll di iPhone SE (667px), 700px, iPhone 14 (844px), Pixel (915px).
+- **Logo wordmark**: h1 sekarang pakai font **Orbitron** (Google Fonts, via `<link>` di `<head>` — SATU-
+  SATUNYA dependency eksternal di file ini, graceful fallback ke system font kalau offline/gagal load)
+  + gradient text (`background-clip:text`) amber→cyan + `drop-shadow` berlapis. Span `#royaleBtn` (trigger
+  settings) masih nempel di dalam teks yang sama.
+- **Champion popup diperbesar + efek "present"**: `showPopup()` sekarang punya branch khusus kalau
+  `label` mengandung "CHAMPION" — flag jadi 150×100 (naik dari 88×59), bounce-in animasi (`champPop`),
+  5 sparkle bertebaran & berkedip (`champSpark`/`champSparkle`) di sekitar bendera. Popup QUALIFIED biasa
+  gak kena efek ini (size lama tetap).
+
 ## THEME VISUAL (GALAXY + PESAWAT LUAR ANGKASA)
 - **Background galaksi**: DUA layer sekarang —
   1. `body` CSS full-page starfield (radial-gradient bintang statis + nebula ungu/biru/pink + base

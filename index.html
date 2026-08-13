@@ -4,10 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Flag Battle Royale — 150 Nations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
   body{
-    color:#eef1ff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:8px;
+    color:#eef1ff;font-family:'Segoe UI',Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:6px;
     background-color:#03040f;
     background-image:
       radial-gradient(1.6px 1.6px at 8% 12%,#fff,transparent 60%),
@@ -27,10 +30,19 @@
     background-repeat:repeat,repeat,repeat,repeat,repeat,repeat,repeat,repeat,repeat,repeat,no-repeat,no-repeat,no-repeat,no-repeat;
     background-size:220px 220px,220px 220px,180px 180px,240px 240px,200px 200px,260px 260px,190px 190px,210px 210px,230px 230px,250px 250px,100% 100%,100% 100%,100% 100%,100% 100%;
   }
-  h1{font-size:19px;letter-spacing:3px;text-align:center;margin:6px 0 8px;color:#ffd447;font-weight:800;text-transform:uppercase;text-shadow:0 0 10px rgba(255,212,71,.55),0 0 26px rgba(120,220,255,.28)}
-  #royaleBtn{cursor:pointer;border-bottom:1px dashed rgba(255,212,71,.35);padding-bottom:1px}
+  h1{
+    font-family:'Orbitron','Segoe UI',Arial,sans-serif;font-weight:900;font-size:21px;letter-spacing:2.5px;
+    text-align:center;margin:4px 0 5px;text-transform:uppercase;
+    background:linear-gradient(90deg,#ffe27a,#ffd447 30%,#ff9f43 55%,#7ce0ff 85%,#39d0ff);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 0 8px rgba(255,212,71,.5)) drop-shadow(0 0 18px rgba(120,220,255,.32));
+  }
+  #royaleBtn{cursor:pointer;border-bottom:1px dashed rgba(255,212,71,.5);padding-bottom:1px}
   #royaleBtn:active{opacity:.7}
   #wrap{position:relative;width:100%;max-width:640px;margin:0 auto}
+  @media (max-height:780px){ #wrap{max-width:330px} }
+  @media (max-height:680px){ #wrap{max-width:270px} }
+  @media (max-height:600px){ #wrap{max-width:220px} }
   #c{display:block;width:100%;border-radius:12px}
   #confettiC{pointer-events:none;position:absolute;inset:0;width:100%;height:100%;border-radius:12px}
   #hud{position:absolute;top:8px;left:8px;background:rgba(7,11,26,.82);padding:4px 8px;border-radius:6px;font-size:10px;line-height:1.4;border:1px solid rgba(255,255,255,.07)}
@@ -59,25 +71,25 @@
   .sr{display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px}
   .sr input[type=range]{flex:1;max-width:160px}
   .sv{min-width:28px;text-align:right;opacity:.7;font-size:11px}
-  .ticker{width:100%;max-width:640px;margin:0 auto 6px;background:#101a3a;border-radius:8px;padding:6px 8px 8px;border:1px solid rgba(120,220,255,.1);box-shadow:inset 0 0 20px rgba(60,200,255,.05)}
-  .ticker h3{font-size:12px;color:#ffd447;margin-bottom:4px;letter-spacing:.5px}
+  .ticker{width:100%;max-width:640px;margin:0 auto 4px;background:#101a3a;border-radius:8px;padding:4px 6px 5px;border:1px solid rgba(120,220,255,.1);box-shadow:inset 0 0 20px rgba(60,200,255,.05)}
+  .ticker h3{font-size:11px;color:#ffd447;margin-bottom:3px;letter-spacing:.5px}
   .ticker.elim{border-color:rgba(255,90,80,.18);box-shadow:inset 0 0 20px rgba(255,90,80,.06)}
-  .qRow{position:relative;height:26px;overflow:hidden;margin:3px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
-  .qRowInner{display:inline-flex;gap:6px;position:absolute;left:0;top:0;white-space:nowrap;will-change:transform}
-  .qRowInner img{width:34px;height:22px;object-fit:cover;border-radius:3px;border:1px solid rgba(120,220,255,.3);box-shadow:0 0 5px rgba(60,200,255,.25);flex:0 0 auto}
+  .qRow{position:relative;height:20px;overflow:hidden;margin:2px 0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)}
+  .qRowInner{display:inline-flex;gap:5px;position:absolute;left:0;top:0;white-space:nowrap;will-change:transform}
+  .qRowInner img{width:28px;height:18px;object-fit:cover;border-radius:3px;border:1px solid rgba(120,220,255,.3);box-shadow:0 0 5px rgba(60,200,255,.25);flex:0 0 auto}
   .ticker.elim .qRowInner img{filter:grayscale(1) contrast(1.05) brightness(.85);border-color:rgba(255,120,110,.35);box-shadow:0 0 5px rgba(255,60,60,.2)}
-  .qRow.empty::after{content:'—';display:block;text-align:center;opacity:.25;font-size:11px;line-height:26px}
+  .qRow.empty::after{content:'—';display:block;text-align:center;opacity:.25;font-size:10px;line-height:20px}
   @keyframes qsweep{from{transform:translateX(var(--sx,100%))}to{transform:translateX(var(--ex,-100%))}}
 
-  #startRow{display:flex;align-items:flex-end;justify-content:center;gap:18px;width:100%;max-width:640px;margin:12px auto 10px}
-  #startBtn{flex:none;position:relative;width:72px;height:72px;border-radius:50%;border:2px solid rgba(120,220,255,.4);background:radial-gradient(circle at 50% 35%,#182451,#0b1230);box-shadow:0 0 18px rgba(120,220,255,.25),inset 0 0 12px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:visible;padding:0;transition:box-shadow .2s,border-color .2s}
-  #startBtn.isRunning{border-color:rgba(255,159,67,.75);box-shadow:0 0 24px rgba(255,140,60,.45),inset 0 0 12px rgba(0,0,0,.4)}
-  #startBtn svg{position:relative;z-index:2;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
-  #thrust{position:absolute;top:100%;left:50%;transform:translateX(-50%);display:flex;justify-content:center;gap:3px;opacity:0;transition:opacity .15s;pointer-events:none}
+  #startRow{display:flex;align-items:flex-end;justify-content:center;gap:18px;width:100%;max-width:640px;margin:4px auto}
+  #startBtn{flex:none;position:relative;width:50px;height:50px;border-radius:50%;border:2px solid rgba(120,220,255,.4);background:radial-gradient(circle at 50% 35%,#182451,#0b1230);box-shadow:0 0 14px rgba(120,220,255,.25),inset 0 0 10px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;cursor:pointer;overflow:visible;padding:0;transition:box-shadow .2s,border-color .2s}
+  #startBtn.isRunning{border-color:rgba(255,159,67,.75);box-shadow:0 0 18px rgba(255,140,60,.45),inset 0 0 10px rgba(0,0,0,.4)}
+  #startBtn svg{position:relative;z-index:2;width:24px;height:36px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+  #thrust{position:absolute;top:100%;left:50%;transform:translateX(-50%);display:flex;justify-content:center;gap:2px;opacity:0;transition:opacity .15s;pointer-events:none}
   #startBtn.isRunning #thrust{opacity:1}
-  #thrust .fl{width:5px;height:16px;border-radius:0 0 5px 5px;background:linear-gradient(180deg,#fff6c8,#ff9f43 55%,#ff5e3a);transform-origin:top center;animation:flicker .3s ease-in-out infinite}
-  #thrust .f2{height:24px;animation-delay:.07s}
-  #thrust .f3{height:14px;animation-delay:.14s}
+  #thrust .fl{width:4px;height:11px;border-radius:0 0 4px 4px;background:linear-gradient(180deg,#fff6c8,#ff9f43 55%,#ff5e3a);transform-origin:top center;animation:flicker .3s ease-in-out infinite}
+  #thrust .f2{height:17px;animation-delay:.07s}
+  #thrust .f3{height:10px;animation-delay:.14s}
   @keyframes flicker{0%,100%{transform:scaleY(1) scaleX(1);opacity:.85}50%{transform:scaleY(1.4) scaleX(.75);opacity:1}}
   #qualifyPopup{
     position:absolute;top:50%;left:50%;z-index:40;display:flex;flex-direction:column;align-items:center;
@@ -91,6 +103,11 @@
   #qualifyPopup.hide-anim{transition:opacity .4s,transform .4s;opacity:0;transform:translate(-50%,-50%) scale(.8)}
   @keyframes qpop{0%{transform:translate(-50%,-50%) scale(0);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
   #qpopFlag{width:84px;height:56px;object-fit:cover;border-radius:6px;box-shadow:0 3px 12px rgba(0,0,0,.5)}
+  .champFlagWrap{position:relative;display:inline-block;animation:champPop .8s cubic-bezier(.18,1.6,.4,1)}
+  .champFlagWrap img{width:150px;height:100px;object-fit:cover;border-radius:10px;box-shadow:0 0 0 4px rgba(255,212,71,.9),0 0 44px rgba(255,196,60,.55),0 10px 26px rgba(0,0,0,.6)}
+  @keyframes champPop{0%{transform:scale(0) rotate(-10deg)}55%{transform:scale(1.14) rotate(4deg)}75%{transform:scale(.96) rotate(-1deg)}100%{transform:scale(1) rotate(0)}}
+  .champSpark{position:absolute;font-size:20px;color:#ffe27a;text-shadow:0 0 8px rgba(255,224,138,.9);animation:champSparkle 1.15s ease-in-out infinite;pointer-events:none}
+  @keyframes champSparkle{0%,100%{opacity:0;transform:scale(.3) rotate(0deg)}50%{opacity:1;transform:scale(1.2) rotate(25deg)}}
   #qpopName{margin-top:8px;font-size:16px;font-weight:800;color:#ffd447;letter-spacing:.5px;text-shadow:0 1px 3px rgba(0,0,0,.6)}
   #qpopLbl{font-size:10px;opacity:.7;letter-spacing:1.5px;margin-top:2px;text-transform:uppercase}
 </style>
@@ -180,7 +197,9 @@ let mode='normal',boost=false;
 let actx=null,soundOn=true,lastBounce=0,lastElim=0,lastScrape=0;
 function ensureAudio(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(actx&&actx.state==='suspended')actx.resume()}
 function beep(freq,dur,type,vol,when){
-  if(!soundOn||!actx)return;const t=actx.currentTime+(when||0);
+  if(!soundOn||!actx)return;
+  if(actx.state==='suspended')actx.resume(); // mobile browsers can suspend the shared context when speechSynthesis grabs audio focus
+  const t=actx.currentTime+(when||0);
   const o=actx.createOscillator(),g=actx.createGain();
   o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
   g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.1,t+0.01);
@@ -200,7 +219,7 @@ function rnd(a,b){return a+Math.random()*(b-a)}
 function shf(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function initTournament(){
   allN=FLAGS.map((f,i)=>({id:i,flag:f,code:FLAG_CODES[i]}));shf(allN);
-  qPool=allN.slice();qualified=[];knockoutPool=[];sessionPool=[];survivors3=[];podium=[];podiumOrder=[];elimLog=[];gapA=0;simT=0;wallClock=0;sparks=[];particles=[];lasers=[];fireworks=[];
+  qPool=allN.slice();qualified=[];knockoutPool=[];sessionPool=[];survivors3=[];podium=[];podiumOrder=[];elimLog=[];gapA=0;simT=0;wallClock=0;sparks=[];particles=[];lasers=[];fireworks=[];lastQualifiedRender=-1;lastElimRender=-1;
 }
 function readGaps(b){gaps=[];for(let i=0;i<nGaps;i++)gaps.push(b+i*(Math.PI*2/nGaps))}
 function angDiff(a,b){let d=a-b;return Math.atan2(Math.sin(d),Math.cos(d))}
@@ -218,7 +237,7 @@ function mkBalls(grp,spd){
 
 function ballSpd(){return +document.getElementById('ballSp').value}
 function enterPhase(){
-  elimLog=[]; lastElimNotified=0;
+  elimLog=[]; lastElimNotified=0; lastElimRender=-1;
   if(phase==='qualify'){ nGaps=4; balls=mkBalls(qPool,ballSpd()); }
   else if(phase==='knockout'){ nGaps=2; balls=mkBalls(knockoutPool,ballSpd()); }
   else if(phase==='podium'){ nGaps=1; balls=mkBalls(survivors3,ballSpd()); }
@@ -333,7 +352,7 @@ function step(dt){
     if(left.length<=3 && left.length>=1){
       survivors3=left.map(b=>b.n);
       updateHUD();
-      radioAnnounce(`Standing round reached. Advancing to the podium: ${survivors3.map(n=>NAME_MAP[n.code]||n.code).join(', ')}.`);
+      radioAnnounce(`Standing round locked in. Advancing to the podium: ${survivors3.map(n=>NAME_MAP[n.code]||n.code).join(', ')}. Prepare for the final stand.`);
       showPopup(survivors3,'FINAL 3',()=>{
         showPhaseIntro('podium',()=>{ phase='podium'; enterPhase(); });
       },true);
@@ -352,7 +371,7 @@ function step(dt){
       const third=elimLog.length>=2?elimLog[elimLog.length-2]:second;
       podium=[champ,second,third];
       phase='done'; setRunning(false); updateHUD();
-      radioAnnounce(`We have a champion! ${NAME_MAP[champ.code]||champ.code} wins the Flag Battle Royale!`);
+      radioAnnounce(`We have a champion! ${NAME_MAP[champ.code]||champ.code} takes the crown of the Flag Battle Royale! Congratulations, champion.`);
       showPopup([champ],'🏆 CHAMPION',()=>{ showPodium(); },true);
       return;
     }
@@ -503,8 +522,9 @@ function renderTicker(list,prefix,countId){
     row.style.animation=`qsweep ${dur}s linear infinite`;
   }
 }
-function renderG(){ renderTicker(qualified,'qRow','bracketCount'); }
-function renderLog(){ renderTicker(elimLog,'eRow','elimCount'); }
+let lastQualifiedRender=-1, lastElimRender=-1;
+function renderG(){ if(qualified.length===lastQualifiedRender)return; lastQualifiedRender=qualified.length; renderTicker(qualified,'qRow','bracketCount'); }
+function renderLog(){ if(elimLog.length===lastElimRender)return; lastElimRender=elimLog.length; renderTicker(elimLog,'eRow','elimCount'); }
 
 function showPodium(){
   playFanfare();
@@ -580,8 +600,10 @@ function renderEffects(dt){
   }
 }
 
+let lastAudioCheck=0;
 function loop(t){
   if(!lt)lt=t;let dt=Math.min((t-lt)/1e3,0.033);lt=t;wallClock+=dt;
+  if(actx&&t-lastAudioCheck>1000){ lastAudioCheck=t; if(actx.state==='suspended')actx.resume(); }
   if(running){const st=(phase==='qualify')?(boost?45:simM):2;for(let s=0;s<st;s++)step(dt)}
   draw();renderEffects(dt);requestAnimationFrame(loop)
 }
@@ -604,31 +626,41 @@ document.getElementById('royaleBtn').onclick=()=>document.getElementById('settOv
 document.getElementById('settOverlay').onclick=e=>{if(e.target.id==='settOverlay')document.getElementById('settOverlay').classList.remove('show')};
 
 const PHASE_INFO={
-  qualify:{title:'⚡ QUALIFICATION',sub:'150 → 75 Nations',desc:'All 150 nations battle at once inside the arena. 4 gaps stay open around the hull. Each round, only the LAST survivor qualifies — 75 rounds total.'},
-  knockout:{title:'🎯 KNOCKOUT',sub:'75 → 3 Nations',desc:'Continuous battle, no restarts. 2 gaps, each open 10s then closed 5s, staggered — there is almost always an opening somewhere. Survive to stay in the fight until 3 nations remain.'},
-  podium:{title:'🏆 PODIUM',sub:'Final 3 → Champion',desc:'The last stand. 1 gap opens for 2s every 10 seconds. The last nation standing becomes the Champion!'}
+  qualify:{title:'⚡ QUALIFICATION',sub:'150 → 75 Nations',desc:'All 150 nations battle at once inside the arena. 4 gaps stay open around the hull. Each round, only the LAST survivor qualifies — 75 rounds total.',
+    voice:'Attention, pilots. Qualification round, initiated. One hundred fifty nations enter the arena at once. Four hull breaches stay open. Only the last ship standing each round advances. Seventy-five will make the cut. Good luck out there.'},
+  knockout:{title:'🎯 KNOCKOUT',sub:'75 → 3 Nations',desc:'Continuous battle, no restarts. 2 gaps, each open 10s then closed 5s, staggered — there is almost always an opening somewhere. Survive to stay in the fight until 3 nations remain.',
+    voice:'Knockout phase, engaged. Seventy-five nations remain. Two hull breaches now cycle open and shut. Survive the breach, or you are finished. Only three will remain standing.'},
+  podium:{title:'🏆 PODIUM',sub:'Final 3 → Champion',desc:'The last stand. 1 gap opens for 2s every 10 seconds. The last nation standing becomes the Champion!',
+    voice:'Final stand. Three nations remain. One breach, cycling every ten seconds. Fight for the crown. Only one champion will rise.'}
 };
 // ===== VOICE-OVER (SpeechSynthesis) — bookended with radio chirps for a space-transmission feel =====
 let voiceList=null;
+function refreshVoices(){ voiceList=window.speechSynthesis.getVoices(); }
 if('speechSynthesis' in window){
-  window.speechSynthesis.onvoiceschanged=()=>{ voiceList=window.speechSynthesis.getVoices(); };
+  refreshVoices();
+  window.speechSynthesis.onvoiceschanged=refreshVoices;
+}
+function pickVoice(){
+  const voices=(voiceList&&voiceList.length)?voiceList:((window.speechSynthesis&&window.speechSynthesis.getVoices())||[]);
+  if(!voices.length) return null;
+  const byName=n=>voices.find(v=>n.test(v.name));
+  return byName(/Daniel|Google UK English Male|Male|David|Fred/i) || voices.find(v=>/en/i.test(v.lang)) || voices[0];
 }
 function speak(text){
   if(!soundOn||!('speechSynthesis' in window)) return;
   try{
     window.speechSynthesis.cancel();
     const u=new SpeechSynthesisUtterance(text);
-    u.rate=0.95; u.pitch=0.82; u.volume=1;
-    const voices=voiceList||window.speechSynthesis.getVoices();
-    if(voices&&voices.length){ const v=voices.find(v=>/en/i.test(v.lang))||voices[0]; if(v)u.voice=v; }
-    u.onend=()=>{ beep(900,0.05,'sine',0.04); beep(1200,0.06,'sine',0.05,0.06); };
+    u.rate=0.92; u.pitch=0.78; u.volume=1;
+    const v=pickVoice(); if(v)u.voice=v;
+    u.onend=()=>{ beep(760,0.05,'sine',0.04); beep(1180,0.06,'sine',0.05,0.07); };
     window.speechSynthesis.speak(u);
   }catch(e){}
 }
 function radioAnnounce(text){
   if(!soundOn) return;
-  beep(1200,0.06,'sine',0.05); beep(900,0.05,'sine',0.04,0.07);
-  setTimeout(()=>speak(text),200);
+  beep(1180,0.05,'sine',0.05); beep(1500,0.04,'sine',0.045,0.06); beep(900,0.06,'sine',0.04,0.12);
+  setTimeout(()=>speak(text),260);
 }
 function showPhaseIntro(key,onDone){
   const info=PHASE_INFO[key];
@@ -637,7 +669,7 @@ function showPhaseIntro(key,onDone){
   document.getElementById('qpopLbl').textContent=info.title;
   const body=document.getElementById('qpopBody');
   body.innerHTML=`<div id="qpopSub">${info.sub}</div><div id="qpopDesc">${info.desc}</div>`;
-  radioAnnounce(`${info.title.replace(/[^\x00-\x7F]/g,'').trim()}. ${info.desc}`);
+  radioAnnounce(info.voice);
   const p=document.getElementById('qualifyPopup');
   p.classList.remove('show','hide-anim'); void p.offsetWidth; p.classList.add('show');
   popupBusy=true;
@@ -678,7 +710,14 @@ function showPopup(items,label,onDone,forcePause){
   document.getElementById('qpopLbl').textContent=label||'';
   const body=document.getElementById('qpopBody');
   if(!items||items.length===0){body.innerHTML='';}
-  else if(items.length===1){
+  else if(items.length===1&&(label||'').indexOf('CHAMPION')!==-1){
+    const n=items[0];
+    const sparkPos=[[-14,-10],[102,-6],[-12,88],[104,84],[46,-16]];
+    const sparks=sparkPos.map((pos,i)=>`<span class="champSpark" style="top:${pos[1]}%;left:${pos[0]}%;animation-delay:${(i*0.17).toFixed(2)}s">${i%2?'✧':'✦'}</span>`).join('');
+    body.innerHTML=`<div class="champFlagWrap">${sparks}<img src="${FLAG_IMGS[n.code]}"></div>
+      <div style="margin-top:12px;font-size:20px;font-weight:800;color:#ffd447;letter-spacing:.5px;text-shadow:0 1px 4px rgba(0,0,0,.7)">${NAME_MAP[n.code]||n.code}</div>`;
+    playQualify();
+  }else if(items.length===1){
     const n=items[0];
     body.innerHTML=`<img src="${FLAG_IMGS[n.code]}" style="width:88px;height:59px;object-fit:cover;border-radius:6px;box-shadow:0 3px 12px rgba(0,0,0,.5)">
       <div style="margin-top:8px;font-size:17px;font-weight:800;color:#ffd447;letter-spacing:.5px;text-shadow:0 1px 3px rgba(0,0,0,.6)">${NAME_MAP[n.code]||n.code}</div>`;
