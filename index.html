@@ -185,28 +185,45 @@ for(const code of FLAG_CODES){const img=new Image();img.src=FLAG_IMGS[code];FLAG
 // ===== SETUP =====
 const C=document.getElementById('c'),CX=320,CY=320,R=290;
 const TURRET_L={x:CX-90,y:CY+R+8}, TURRET_R={x:CX+90,y:CY+R+8};
-const TURRET_TL={x:CX-90,y:CY-R-8}, TURRET_TR={x:CX+90,y:CY-R-8};
-const TURRETS=[TURRET_L,TURRET_R,TURRET_TL,TURRET_TR];
 const FX=C.getContext('2d');
 const C2=document.getElementById('confettiC'),FX2=C2.getContext('2d');
 // ===== STATE =====
 let phase='idle',allN=[],qPool=[],qualified=[],knockoutPool=[],sessionPool=[],survivors3=[],podium=[],podiumOrder=[],balls=[],gaps=[0],gapA=0,simT=0;
 let mode='normal',boost=false;
 // ===== SOUND EFFECTS (Web Audio, synthesized) =====
-let actx=null,soundOn=true,lastBounce=0,lastScrape=0;
+let actx=null,soundOn=true,lastBounce=0,lastScrape=0,lastEscape=0;
 function ensureAudio(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(actx&&actx.state==='suspended')actx.resume()}
-function beep(freq,dur,type,vol,when){
+// mobile browsers can suspend the shared context (e.g. when speechSynthesis grabs audio focus);
+// resume() is async, so a sound scheduled right after calling it can get silently dropped unless
+// we wait for the resume to actually complete first.
+function withAudio(fn){
   if(!soundOn||!actx)return;
-  if(actx.state==='suspended')actx.resume(); // mobile browsers can suspend the shared context when speechSynthesis grabs audio focus
-  const t=actx.currentTime+(when||0);
-  const o=actx.createOscillator(),g=actx.createGain();
-  o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
-  g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.1,t+0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-  o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+dur+0.02);
+  if(actx.state==='suspended'){ actx.resume().then(fn).catch(()=>{}); }
+  else { fn(); }
+}
+function beep(freq,dur,type,vol,when){
+  withAudio(()=>{
+    const t=actx.currentTime+(when||0);
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type=type||'sine';o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol||0.1,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+dur+0.02);
+  });
 }
 function playBounce(){const n=performance.now();if(n-lastBounce<90)return;lastBounce=n;beep(200+Math.random()*70,0.05,'triangle',0.04)}
 function playScrape(){const n=performance.now();if(n-lastScrape<80)return;lastScrape=n;beep(150+Math.random()*300,0.09,'sawtooth',0.035)}
+function playEscape(){
+  const n=performance.now();if(n-lastEscape<90)return;lastEscape=n;
+  withAudio(()=>{
+    const t=actx.currentTime;
+    const o=actx.createOscillator(),g=actx.createGain();
+    o.type='sine';o.frequency.setValueAtTime(300,t);o.frequency.exponentialRampToValueAtTime(900,t+0.12);
+    g.gain.setValueAtTime(0.001,t);g.gain.exponentialRampToValueAtTime(0.06,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.14);
+    o.connect(g);g.connect(actx.destination);o.start(t);o.stop(t+0.16);
+  });
+}
 function playQualify(){beep(523,0.13,'triangle',0.11);beep(659,0.13,'triangle',0.11,0.1);beep(784,0.26,'triangle',0.12,0.2)}
 function playFanfare(){[523,659,784,1046].forEach((f,i)=>beep(f,0.3,'triangle',0.13,i*0.13));beep(1318,0.7,'triangle',0.13,0.55)}
 function playPhase(){beep(392,0.12,'triangle',0.1);beep(523,0.18,'triangle',0.1,0.1)}
@@ -274,8 +291,7 @@ function checkGapHit(a,gapStates){
 }
 const ESCAPE_DELAY=0.45, HOVER_R=R+20;
 function fireLaser(b){
-  let turret=TURRETS[0],best=Infinity;
-  for(const t of TURRETS){ const d=Math.hypot(b.x-t.x,b.y-t.y); if(d<best){best=d;turret=t;} }
+  const turret=(b.x<CX)?TURRET_L:TURRET_R;
   lasers.push({x1:turret.x,y1:turret.y,x2:b.x,y2:b.y,life:0.22,max:0.22});
   spawnSparks(b.x,b.y,10,'#ff3b3b');
   playZap();
@@ -300,10 +316,14 @@ function step(dt){
     if(dist+b.r>R){
       const a=Math.atan2(dy,dx);
       if(checkGapHit(a,gapStates)){
-        // every phase now escapes through the gap and gets finalized by a turret laser (fireLaser)
-        const spd=Math.hypot(b.vx,b.vy)||150;
-        b.vx=Math.cos(a)*spd*1.25; b.vy=Math.sin(a)*spd*1.25;
-        b.escaping=true; b.escT=0; b.laserFired=false;
+        playEscape();
+        if(phase==='knockout'||phase==='podium'){
+          const spd=Math.hypot(b.vx,b.vy)||150;
+          b.vx=Math.cos(a)*spd*1.25; b.vy=Math.sin(a)*spd*1.25;
+          b.escaping=true; b.escT=0; b.laserFired=false;
+        } else {
+          b.alive=false;elimLog.push(b.n);
+        }
       }
       else{const nx=dx/dist,ny=dy/dist,o=(dist+b.r)-R;b.x-=nx*o;b.y-=ny*o;const dot=b.vx*nx+b.vy*ny;b.vx-=2*dot*nx;b.vy-=2*dot*ny;playBounce()}
     }
@@ -459,8 +479,6 @@ function drawTurret(ctx,x,y,mirror,flipY){
 function drawTurrets(ctx){
   drawTurret(ctx,TURRET_L.x,TURRET_L.y,false,false);
   drawTurret(ctx,TURRET_R.x,TURRET_R.y,true,false);
-  drawTurret(ctx,TURRET_TL.x,TURRET_TL.y,false,true);
-  drawTurret(ctx,TURRET_TR.x,TURRET_TR.y,true,true);
 }
 
 function draw(){
@@ -515,12 +533,8 @@ function renderTicker(list,prefix,countId){
     const st=tickerRows[rowId]||(tickerRows[rowId]={pos:0,expandedWidth:0,dir:(r===1)?1:-1});
     if(!items.length){ row.innerHTML=''; st.expandedWidth=0; continue; }
     const singleHtml=items.map(n=>`<img src="${FLAG_IMGS[n.code]}" title="${NAME_MAP[n.code]||n.code}">`).join('');
-    row.innerHTML=singleHtml; // measure one copy first
-    const containerW=container.clientWidth||300, singleWidth=row.scrollWidth||1;
-    const repeats=Math.max(1,Math.ceil(containerW/singleWidth)); // pad so it always fills the box
-    const expandedHtml=singleHtml.repeat(repeats);
-    row.innerHTML=expandedHtml+expandedHtml; // two copies back-to-back for a seamless loop
-    st.expandedWidth=singleWidth*repeats;
+    row.innerHTML=singleHtml+singleHtml; // two copies back-to-back for a seamless loop
+    st.expandedWidth=(row.scrollWidth||2)/2; // width of ONE copy
   }
 }
 function stepTickers(dt){

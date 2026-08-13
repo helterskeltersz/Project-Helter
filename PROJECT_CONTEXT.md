@@ -69,19 +69,22 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
   Fungsi lama `effGapW()`/`gapOpenNow()`/`inGap()` **sudah dihapus**, diganti skema ini.
 - **Speed per fase**: qualify pakai tail speed-up (makin sedikit sisa makin cepat) + boost di Accelerated;
   knockout & podium jalan **2 step/frame (2x)** TANPA tail speed-up (user minta "gak usah edit speed, cukup 2x").
-- **Escape + laser turret (knockout/podium only)**: bola yang kena gap gak langsung `alive=false`.
-  Ditandai `escaping=true`, terbang radial keluar sampai `HOVER_R`, hover situ sambil `escT` nambah
-  tiap frame. Begitu `escT>=ESCAPE_DELAY(0.45s)` → `fireLaser(b)` dipanggil: gambar garis laser merah
-  dari turret TERDEKAT (dari 4 total — lihat `TURRETS`/turret di THEME VISUAL di bawah) ke posisi bola,
-  spark merah, baru bola `alive=false` + masuk `elimLog`. `notifyFlag('DISQUALIFIED')` otomatis muncul
-  next tick karena baca `elimLog.length>lastElimNotified` (logic ini gak diubah, tapi notif ini cuma
-  dipasang di knockout/podium — qualify tetap gak nampilin DISQUALIFIED popup per bendera, cuma popup
+- **Escape + laser turret — KNOCKOUT/PODIUM ONLY** (round 5 sempet bikin ini berlaku di qualify juga,
+  tapi di-REVERT lagi di round 6 karena 150 bola × 4 gap kebuka = kebanyakan bola escaping bareng →
+  lag parah di HP. Sekarang balik ke behavior awal): bola yang kena gap DI KNOCKOUT/PODIUM gak langsung
+  `alive=false`. Ditandai `escaping=true`, terbang radial keluar sampai `HOVER_R`, hover situ sambil
+  `escT` nambah tiap frame. Begitu `escT>=ESCAPE_DELAY(0.45s)` → `fireLaser(b)` dipanggil: gambar garis
+  laser merah dari turret terdekat (kiri/kanan by `b.x<CX`, cuma 2 turret — lihat THEME VISUAL) ke posisi
+  bola, spark merah, baru bola `alive=false` + masuk `elimLog`. Di QUALIFY, eliminasi tetap INSTAN
+  (`b.alive=false;elimLog.push(b.n);` langsung, gak ada escape/hover) — percabangan
+  `if(phase==='knockout'||phase==='podium'){...escape...} else {...instant...}` di `step()` itu PENTING,
+  JANGAN dihapus lagi tanpa diminta eksplisit (udah pernah dicoba, hasilnya lag). `notifyFlag
+  ('DISQUALIFIED')` otomatis muncul next tick karena baca `elimLog.length>lastElimNotified` (cuma
+  kepasang di knockout/podium — qualify tetap gak nampilin DISQUALIFIED popup per bendera, cuma popup
   QUALIFIED buat pemenang tiap round). Selama escaping, bola dikecualikan dari collision & wall-bounce
-  loop (biar gak mantul aneh pas udah "keluar"). **PENTING (round 5)**: mekanik escape+laser ini SEKARANG
-  BERLAKU DI SEMUA FASE termasuk qualify (awalnya cuma knockout/podium) — di `step()` percabangan
-  `if(phase==='knockout'||phase==='podium')` udah DIHAPUS, semua eliminasi lewat gap sekarang selalu
-  escape+laser dulu baru masuk `elimLog`. Konsekuensi: penentuan pemenang qualify per-round (`left.length
-  <=1`) ketunda dikit (~0.45s) karena nunggu laser finalize eliminasi terakhir — ini disengaja/diminta.
+  loop (biar gak mantul aneh pas udah "keluar"). Setiap kali bola KENA GAP (fase manapun, instan atau
+  escape), `playEscape()` dipanggil — suara "whoosh" naik pitch, terpisah dari `playZap` (laser, baru
+  bunyi belakangan pas knockout/podium finalize).
 - **POPUP FUNGSI**:
   - `showPopup(items,label,onDone,forcePause)` → popup pause (milestone QUALIFIED/FINAL 3/CHAMPION).
   - `showPhaseIntro(key,onDone)` → popup 5 detik pas ganti fase (qualify/knockout/podium), isi
@@ -97,8 +100,13 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
     → ledakan partikel radial (6 burst staggered ~400ms, warna random per burst) + `playBoom` tiap burst,
     dipanggil bareng `launchConfetti` di `showPodium()`.
   - Suara: `beep`, `playBounce` (wall), `playScrape` (tabrakan bola-bola, sawtooth — beda dari playBounce),
-    `playQualify`, `playFanfare`, `playPhase`, `playZap` (laser), `playBoom` (firework). `playElim` udah
-    DIHAPUS (unused sejak eliminasi selalu lewat `fireLaser`→`playZap`).
+    `playEscape` (bola kena gap/keluar, whoosh naik pitch, SEMUA fase), `playQualify`, `playFanfare`,
+    `playPhase`, `playZap` (laser finalize, cuma knockout/podium), `playBoom` (firework).
+  - **`withAudio(fn)`** (round 6): helper wrapper dipakai semua fungsi suara di atas. Fix bug "sound
+    hilang" round sebelumnya — `beep()` cuma manggil `actx.resume()` tanpa NUNGGU promise-nya selesai
+    sebelum jadwalin oscillator, jadi suaranya sering ke-drop diam-diam kalau context lagi suspended
+    (misal abis `speechSynthesis` ngomong). Sekarang: kalau `actx.state==='suspended'`, tunggu
+    `.resume().then(fn)` baru jalanin suaranya; kalau udah `running`, langsung jalanin `fn()`.
   - **Voice-over** via Web Speech API (`speak(text)`): SEJAK ROUND 5 — suara normal (rate 1, pitch 1),
     prefer voice PEREMPUAN (`pickVoice()` nyari nama match `/Samantha|Zira|Karen|Victoria|Moira|Tessa|
     Female|Google US English|Google UK English Female/i`), TANPA chirp radio/efek luar angkasa (dihapus
@@ -112,12 +120,30 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
   Tiap row (`qRow0-2`/`eRow0-2`) punya state di `tickerRows[rowId] = {pos, expandedWidth, dir}` — `pos`
   itu MONOTONIC (naik terus, gak pernah di-reset oleh `renderTicker()`), diambil modulo
   `expandedWidth` tiap frame di `stepTickers(dt)` (dipanggil dari `loop()`) buat dapetin posisi transform.
-  `renderTicker()` cuma update KONTEN (innerHTML) & `expandedWidth` — content di-pad (di-repeat sampai
-  lebih lebar dari container) baru diduplikasi 2x buat seamless loop, TAPI `pos` gak disentuh sama sekali
-  → makanya nambah bendera baru gak bikin yang lagi jalan "lompat"/restart. `renderG()`/`renderLog()`
+  `renderTicker()` cuma update KONTEN (innerHTML) & `expandedWidth` — list-nya diduplikasi PERSIS 2x
+  aja (bukan di-pad/di-repeat sampai lebar container — itu bug round 5 yang bikin 1-2 bendera doang
+  ke-repeat belasan/puluhan kali buat "isi" kotak, kelihatan kayak bendera dobel-dobel DAN bikin lag
+  parah karena ratusan `<img>` node per row. Round 6: dibalikin simpel, list cuma 2x lipat, titik).
+  `pos` gak disentuh sama sekali pas render → makanya nambah bendera baru gak bikin yang lagi jalan
+  "lompat"/restart. `renderG()`/`renderLog()`
   masih ada guard `lastQualifiedRender`/`lastElimRender` (skip render kalau `.length` gak berubah, biar
   gak measure DOM tiap tick sia-sia — TAPI ini cuma optimasi render konten, animasinya sendiri udah gak
   butuh guard ini lagi karena `stepTickers` jalan independen tiap frame).
+
+## PERUBAHAN DESAIN TERAKHIR (round 6, sama hari 2026-08-13)
+- **User report: lag parah** setelah round 5. Root cause ganda: (1) escape+laser aktif di qualify bikin
+  banyak bola escaping bareng (150 bola × 4 gap), (2) ticker ngerepeat 1-2 bendera sampai puluhan kali
+  buat "isi" kotak → ratusan `<img>` DOM node + reflow tiap render. Kedua-duanya di-REVERT/fix.
+- Laser turret balik ke 2 (bawah aja), mekanik escape+laser balik cuma di knockout/podium, qualify balik
+  instant. **User report: bendera dobel-dobel** di tabel Qualified pas negara baru lolos — ternyata ini
+  gejala yang sama persis dengan bug lag di atas (repeat-padding). Fix: `renderTicker` sekarang cuma
+  duplikasi list PERSIS 2x (teknik seamless-loop standar), gak lagi di-pad sampai lebar container.
+- **User report: sound effect masih ilang.** Root cause: `beep()` manggil `actx.resume()` tapi gak
+  nunggu promise-nya selesai sebelum jadwalin suara → suara abis TTS ngomong sering ke-drop diam-diam.
+  Fix pakai `withAudio(fn)` helper yang nunggu `.resume().then(fn)` kalau context lagi suspended.
+  Ditambah `playEscape()` — suara baru pas bola KENA GAP (whoosh naik pitch), terpisah dari `playZap`
+  (laser finalize) yang udah ada, biar user denger feedback pas bendera "keluar" bukan cuma pas
+  "ketembak".
 
 ## PERUBAHAN DESAIN TERAKHIR (round 5, sama hari 2026-08-13)
 - Voice-over dirombak TOTAL: hapus efek radio/chirp & pitch/rate dramatis, ganti suara PEREMPUAN normal
@@ -164,12 +190,11 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
   energy rail cyan berdenyut di tepi dalam, lampu penerbangan (cockpit blips) cyan kelap-kelip.
 - **CELAH (gap)**: bentuk kayak pintu hatch terbuka dengan glow + lampu tepi. **WAJIB AMBER/KUNING TERAKHIR**:
   lampu celah `rgba(255,225,80)` / glow `rgba(255,204,60)`. JANGAN ubah kembali ke cyan tanpa diminta.
-- **Laser turret**: 4 total (round 5, naik dari 2) — `TURRET_L`/`TURRET_R` (bawah ring) + `TURRET_TL`/
-  `TURRET_TR` (atas ring, shape di-flip vertikal via `drawTurret(ctx,x,y,mirror,flipY)`), semua di array
-  `TURRETS` dan digambar via `drawTurrets`. `fireLaser()` milih yang PALING DEKAT dari 4 (bukan cuma
-  kiri/kanan by x lagi). Versi dekoratif HTML di samping tombol start tetap gak ada (dihapus round 3).
-  Aktif (beneran nembak) dari fase QUALIFICATION juga sekarang, bukan cuma knockout/podium — lihat
-  MEKANIK di atas.
+- **Laser turret**: 2 aja — `TURRET_L`/`TURRET_R`, di bawah ring, digambar via `drawTurrets`.
+  (Round 5 sempet nambah 2 lagi di atas jadi 4 + aktifin dari qualify, tapi di-REVERT round 6 karena
+  bikin lag — lihat MEKANIK di atas. JANGAN diulang lagi tanpa diminta eksplisit.) `fireLaser()` milih
+  kiri/kanan simpel berdasar `b.x<CX`. Versi dekoratif HTML di samping tombol start tetap gak ada
+  (dihapus round 3).
 - **HUD overlay dihapus** (round 5): kotak kecil "🎯 alive/total | ⚡ nama-fase" yang dulu nempel di
   pojok kiri-atas canvas (`#hud`) udah gak ada — user minta dibersihin. `updateHUD()` sekarang cuma
   manggil `renderLog()`, gak ada lagi elemen `#alive`/`#total`/`#fase` di DOM.
