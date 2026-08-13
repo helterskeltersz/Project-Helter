@@ -69,6 +69,11 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
   Fungsi lama `effGapW()`/`gapOpenNow()`/`inGap()` **sudah dihapus**, diganti skema ini.
 - **Speed per fase**: qualify pakai tail speed-up (makin sedikit sisa makin cepat) + boost di Accelerated;
   knockout & podium jalan **2 step/frame (2x)** TANPA tail speed-up (user minta "gak usah edit speed, cukup 2x").
+- **Collision ball-vs-ball pakai spatial grid** (round 7, bukan O(n²) polos lagi): di `step()`, sebelum
+  loop tabrakan, semua bola alive&non-escaping di-bucket ke `Map` grid (`CELL=80`px per cell, key
+  `"cx_cy"`). Tiap bola cuma dicek lawan bola-bola di cell-nya sendiri + 8 tetangga (3×3), bukan SEMUA
+  bola lain. Turun ~74% jumlah pair-check di kondisi terpadat (150 bola). Fisika/rumus resolusi
+  tabrakannya SAMA PERSIS — ini murni optimasi algoritma milih pasangan mana yg layak dicek.
 - **Escape + laser turret — KNOCKOUT/PODIUM ONLY** (round 5 sempet bikin ini berlaku di qualify juga,
   tapi di-REVERT lagi di round 6 karena 150 bola × 4 gap kebuka = kebanyakan bola escaping bareng →
   lag parah di HP. Sekarang balik ke behavior awal): bola yang kena gap DI KNOCKOUT/PODIUM gak langsung
@@ -130,6 +135,28 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
   gak measure DOM tiap tick sia-sia — TAPI ini cuma optimasi render konten, animasinya sendiri udah gak
   butuh guard ini lagi karena `stepTickers` jalan independen tiap frame).
 
+## PERUBAHAN DESAIN TERAKHIR (round 7, sama hari 2026-08-13)
+User masih lapor lag + no-sound abis round 6. Didiagnosis bareng (bukan asal-tebak lagi):
+- **Lag**: dikonfirmasi user CUMA pas battle jalan (bukan idle) → nunjuk ke physics, bukan CSS
+  background. Root cause: collision ball-vs-ball di `step()` itu O(n²) — 150 bola = 11.175 pasangan
+  dicek TIAP FRAME, gak ada spatial optimization dari awal. Fix: **spatial grid broad-phase**
+  (`CELL=80`, ukuran cell nutupin diameter bola terbesar × 2 biar pasangan yg collide dijamin ke-cover
+  di cell yg sama/sebelahan). Bola di-bucket ke grid (`Map` key `"cx_cy"`), tiap bola cuma ngecek 3×3
+  cell tetangga, bukan SEMUA bola lain. Terukur: 11.175 → 2.902 pair-check (turun 74%) di kondisi
+  terpadat (150 bola bareng, awal qualify). Physics/hasil collision-nya SAMA PERSIS (cuma optimasi
+  ALGORITMA milih pasangan mana yg dicek, bukan ubah rumus resolusi tabrakannya).
+- **Sound**: user pake iPhone dengan **saklar Silent/Ring fisik posisi ON**. Ini expose bug/behavior
+  khas iOS Safari — Web Audio API (dipake buat SEMUA `beep()`-based sound effect) di-treat sebagai
+  kategori audio "ambient" yg PATUH sama saklar silent, sedangkan `SpeechSynthesis` (voice-over) TIDAK
+  kena efek itu (makanya voice tetep kedengeran tapi efek suara enggak — persis sesuai laporan user).
+  Fix standar: elemen `<audio id="silentUnlock" loop playsinline>` isinya WAV senyap (silent PCM data,
+  generated via Python, base64 di HTML), di-`.play()` dari `unlockIOSAudio()` yang dipanggil di dalam
+  `startBtn.onclick` (harus sinkron dalem user-gesture). Begitu elemen `<audio>` ini "playing", Safari
+  switch kategori audio session halaman ke "playback" yg NGABAIIN saklar silent — otomatis bikin Web
+  Audio ikut kedengeran juga. **CATATAN PENTING buat sesi depan**: kalau ada laporan "sound gak ada
+  padahal voice over ada" lagi, ini kemungkinan besar user iPhone dengan silent switch ON — cek itu
+  DULU sebelum ngoprek kode lagi, dan pastiin elemen `#silentUnlock` masih ada & ke-play di startBtn.
+
 ## PERUBAHAN DESAIN TERAKHIR (round 6, sama hari 2026-08-13)
 - **User report: lag parah** setelah round 5. Root cause ganda: (1) escape+laser aktif di qualify bikin
   banyak bola escaping bareng (150 bola × 4 gap), (2) ticker ngerepeat 1-2 bendera sampai puluhan kali
@@ -141,6 +168,10 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
 - **User report: sound effect masih ilang.** Root cause: `beep()` manggil `actx.resume()` tapi gak
   nunggu promise-nya selesai sebelum jadwalin suara → suara abis TTS ngomong sering ke-drop diam-diam.
   Fix pakai `withAudio(fn)` helper yang nunggu `.resume().then(fn)` kalau context lagi suspended.
+  **Round 7**: itu ternyata belum cukup buat iPhone dengan saklar Silent ON — lihat elemen
+  `<audio id="silentUnlock">` (WAV senyap) + `unlockIOSAudio()` yang dipanggil di `startBtn.onclick`,
+  detail lengkap di changelog round 7 di bawah. JANGAN dihapus, itu yang bikin efek suara kedengeran
+  di iPhone mode silent.
   Ditambah `playEscape()` — suara baru pas bola KENA GAP (whoosh naik pitch), terpisah dari `playZap`
   (laser finalize) yang udah ada, biar user denger feedback pas bendera "keluar" bukan cuma pas
   "ketembak".

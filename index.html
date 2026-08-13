@@ -150,6 +150,9 @@
   <div class="qRow empty"><div class="qRowInner" id="eRow1"></div></div>
   <div class="qRow empty"><div class="qRowInner" id="eRow2"></div></div>
 </div>
+<audio id="silentUnlock" loop playsinline style="display:none">
+  <source src="data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA">
+</audio>
 <div id="settOverlay">
   <div id="settPanel">
     <h3>⚙️ Settings <button onclick="document.getElementById('settOverlay').classList.remove('show')" style="background:none;border:none;color:#fff;font-size:17px;cursor:pointer">✕</button></h3>
@@ -193,6 +196,15 @@ let mode='normal',boost=false;
 // ===== SOUND EFFECTS (Web Audio, synthesized) =====
 let actx=null,soundOn=true,lastBounce=0,lastScrape=0,lastEscape=0;
 function ensureAudio(){if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)()}catch(e){}}if(actx&&actx.state==='suspended')actx.resume()}
+// iOS Safari mutes the Web Audio API when the physical Ring/Silent switch is set to silent
+// (it treats it as "ambient" audio), but keeps SpeechSynthesis and any playing <audio>/<video>
+// element audible. Playing a silent looping <audio> element switches the page's audio session
+// to the "playback" category, which makes Web Audio ignore the silent switch too.
+function unlockIOSAudio(){
+  const el=document.getElementById('silentUnlock');
+  if(!el) return;
+  el.play().catch(()=>{});
+}
 // mobile browsers can suspend the shared context (e.g. when speechSynthesis grabs audio focus);
 // resume() is async, so a sound scheduled right after calling it can get silently dropped unless
 // we wait for the resume to actually complete first.
@@ -336,9 +348,26 @@ function step(dt){
     if(!b.laserFired && b.escT>=ESCAPE_DELAY){ b.laserFired=true; fireLaser(b); }
   }
   const lst=balls.filter(b=>b.alive&&!b.escaping);
-  for(let i=0;i<lst.length;i++)for(let j=i+1;j<lst.length;j++){
-    const a=lst[i],b=lst[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),md=a.r+b.r;
-    if(d<md&&d>1e-4){const nx=dx/d,ny=dy/d,o=(md-d)/2;a.x-=nx*o;a.y-=ny*o;b.x+=nx*o;b.y+=ny*o;const rv=b.vx-a.vx,rv2=b.vy-a.vy,v=rv*nx+rv2*ny;if(v<0){a.vx+=v*nx;a.vy+=v*ny;b.vx-=v*nx;b.vy-=v*ny;playScrape();spawnSparks((a.x+b.x)/2,(a.y+b.y)/2,(phase==='podium'?7:3))}}
+  // spatial grid broad-phase: cell size covers the largest possible ball pair (max r*2), so any
+  // colliding pair is guaranteed to land in the same or an adjacent cell — avoids O(n^2) checks
+  // against every other ball, which was the main source of lag with 150 balls in qualification.
+  const CELL=80;
+  const grid=new Map();
+  for(let i=0;i<lst.length;i++){
+    const b=lst[i],key=Math.floor(b.x/CELL)+'_'+Math.floor(b.y/CELL);
+    let arr=grid.get(key); if(!arr){arr=[];grid.set(key,arr);} arr.push(i);
+  }
+  for(let i=0;i<lst.length;i++){
+    const a=lst[i],cx=Math.floor(a.x/CELL),cy=Math.floor(a.y/CELL);
+    for(let ox=-1;ox<=1;ox++)for(let oy=-1;oy<=1;oy++){
+      const arr=grid.get((cx+ox)+'_'+(cy+oy));
+      if(!arr) continue;
+      for(const j of arr){
+        if(j<=i) continue;
+        const b=lst[j],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy),md=a.r+b.r;
+        if(d<md&&d>1e-4){const nx=dx/d,ny=dy/d,o=(md-d)/2;a.x-=nx*o;a.y-=ny*o;b.x+=nx*o;b.y+=ny*o;const rv=b.vx-a.vx,rv2=b.vy-a.vy,v=rv*nx+rv2*ny;if(v<0){a.vx+=v*nx;a.vy+=v*ny;b.vx-=v*nx;b.vy-=v*ny;playScrape();spawnSparks((a.x+b.x)/2,(a.y+b.y)/2,(phase==='podium'?7:3))}}
+      }
+    }
   }
   const left=balls.filter(b=>b.alive);
   // Qualification: one round until LAST survivor qualifies
@@ -723,6 +752,7 @@ document.getElementById('startBtn').onclick=()=>{
   if(popupBusy) return;
   ensureAudio();
   unlockSpeech();
+  unlockIOSAudio();
   if(running){ setRunning(false); return; }
   if(phase==='idle'||phase==='done'){ beginTournament(); }
   else { setRunning(true); }
