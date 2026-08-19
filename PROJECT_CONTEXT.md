@@ -135,6 +135,24 @@ Per-ball flag tambahan (di object ball, bukan global): `escaping`, `escT`, `lase
   gak measure DOM tiap tick sia-sia — TAPI ini cuma optimasi render konten, animasinya sendiri udah gak
   butuh guard ini lagi karena `stepTickers` jalan independen tiap frame).
 
+## PERUBAHAN DESAIN TERAKHIR (round 8, 2026-08-19)
+- **Fitur baru: Auto-loop.** User minta tools buat auto-jalanin beberapa game berturut-turut, custom
+  jumlahnya, taruh di Settings. Row baru "Auto-loop" di `#settPanel`: checkbox `#loopEnable` + number
+  input `#loopCount` (default 5, min 1 max 999).
+  - State: `loopTotal`, `loopCurrent` (progress sekarang), `loopTimer` (setTimeout id).
+  - `maybeAutoLoop()` dipanggil di akhir `showPodium()` (tiap kali ada juara) — kalau checkbox aktif,
+    increment `loopCurrent`, update status text (`updateLoopStatus()` → `#loopStatus`, format "Loop
+    X/Y", row `#loopStatusRow` cuma keliatan pas lagi aktif). Kalau `loopCurrent<loopTotal`, jadwalin
+    `beginTournament()` lagi via `setTimeout(...,7000)` (kasih waktu nikmatin perayaan podium dulu).
+    Timer callback CEK ULANG checkbox sebelum beneran restart (biar kalau di-uncheck pas nunggu, gak
+    jadi auto-restart).
+  - `beginTournament()` di awal fungsi clear `loopTimer` kalau ada yg pending — mencegah DOUBLE START
+    kalau user pencet Start manual pas auto-loop timer masih nunggu.
+  - Klik Start MANUAL (bukan dari loop) selalu reset `loopCurrent=0` dulu — jadi tiap kali user mulai
+    sendiri, itu dianggap games ke-1 dari sequence loop yang baru (kalau loop aktif).
+  - Diverifikasi lewat test: loop 3 game → 1 manual + 2 auto-restart, abis itu berhenti sendiri
+    (`loopCurrent` balik ke 0), gak restart lagi ke-4.
+
 ## PERUBAHAN DESAIN TERAKHIR (round 7, sama hari 2026-08-13)
 User masih lapor lag + no-sound abis round 6. Didiagnosis bareng (bukan asal-tebak lagi):
 - **Lag**: dikonfirmasi user CUMA pas battle jalan (bukan idle) → nunjuk ke physics, bukan CSS

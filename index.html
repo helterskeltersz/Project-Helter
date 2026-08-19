@@ -166,6 +166,15 @@
         <option value="fast">Accelerated</option>
       </select></div>
     <div class="sr"><span>Sound effects</span><label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="snd" checked onchange="soundOn=this.checked"> <span id="sndV">On</span></label></div>
+    <div class="sr">
+      <span>Auto-loop</span>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+        <input type="checkbox" id="loopEnable" onchange="updateLoopStatus()">
+        <input type="number" id="loopCount" min="1" max="999" value="5" style="width:52px;padding:4px;border-radius:6px;border:1px solid #333;background:#0c1230;color:#fff" onchange="updateLoopStatus()">
+        <span>games</span>
+      </label>
+    </div>
+    <div class="sr" id="loopStatusRow" style="display:none"><span></span><span id="loopStatus" style="font-size:11px;opacity:.7;color:#7ce0ff"></span></div>
     <button onclick="readCtrls();document.getElementById('settOverlay').classList.remove('show')" style="width:100%;margin-top:6px">✅ Close</button>
   </div>
 </div>
@@ -589,6 +598,30 @@ function showPodium(){
   document.getElementById('winnerBanner').classList.add('show');
   launchConfetti();
   launchFireworks();
+  maybeAutoLoop();
+}
+
+// ===== AUTO-LOOP: automatically replay N tournaments back-to-back (configured in Settings) =====
+let loopTotal=0, loopCurrent=0, loopTimer=null;
+function updateLoopStatus(){
+  const row=document.getElementById('loopStatusRow'), el=document.getElementById('loopStatus');
+  const enabled=document.getElementById('loopEnable').checked;
+  if(!enabled||loopCurrent<=0){ row.style.display='none'; return; }
+  row.style.display='flex';
+  el.textContent=`Loop ${loopCurrent}/${loopTotal}`;
+}
+function maybeAutoLoop(){
+  const enableEl=document.getElementById('loopEnable');
+  if(!enableEl.checked) return;
+  loopTotal=Math.max(1,+document.getElementById('loopCount').value||1);
+  loopCurrent+=1;
+  updateLoopStatus();
+  if(loopCurrent>=loopTotal){ loopCurrent=0; return; } // sequence finished, don't auto-restart
+  if(loopTimer)clearTimeout(loopTimer);
+  loopTimer=setTimeout(()=>{
+    loopTimer=null;
+    if(document.getElementById('loopEnable').checked) beginTournament();
+  },7000); // let the podium celebration play out before the next game
 }
 
 
@@ -742,6 +775,7 @@ function showPhaseIntro(key,onDone){
 }
 
 function beginTournament(){
+  if(loopTimer){clearTimeout(loopTimer);loopTimer=null;} // avoid a double-start if the loop timer was pending
   document.getElementById('winnerBanner').classList.remove('show');
   FX2.clearRect(0,0,640,640);particles=[];sparks=[];lasers=[];fireworks=[];fwTimers.forEach(t=>clearTimeout(t));fwTimers=[];wallClock=0;
   readCtrls();initTournament();renderG();renderLog();
@@ -754,7 +788,7 @@ document.getElementById('startBtn').onclick=()=>{
   unlockSpeech();
   unlockIOSAudio();
   if(running){ setRunning(false); return; }
-  if(phase==='idle'||phase==='done'){ beginTournament(); }
+  if(phase==='idle'||phase==='done'){ loopCurrent=0; updateLoopStatus(); beginTournament(); }
   else { setRunning(true); }
 };
 let qpopTimer=null, popupBusy=false, notifTimer=null;
